@@ -1,0 +1,246 @@
+---
+title: "Human Activity Recognition"
+author: "Dennis Noren"
+date: "June 12, 2015"
+output: html_document
+---
+
+## Project for Practical Machine Learning Class, Coursera
+
+### Problem Description:
+
+A human activity dataset with many sensor measurements, applied under controlled conditions to six subjects, is used.  The goal is to train a model to predict which of five classes is represented from a new sequence of like measurements.  
+
+The following paper describes the original study:  
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H.  
+Qualitative Activity Recognition of Weight Lifting Exercises.  
+Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13)  
+Stuttgart, Germany: ACM SIGCHI, 2013.  
+The above paper can be linked from this site:  
+http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises
+
+In particular, the subjects are performing dumbbell curls.  Each time, they are instructed to use one of five methods to perform these, encoded in the dataset as the 'classe' variable.  These methods are:  
+
+* A: correct method to perform the exercise.
+* B: throwing elbows to the front
+* C: lifting dumbbell only halfway
+* D: lowering dumbbell only halfway
+* E: throwing hips to the front
+
+### Data Examination and Preprocessing
+
+All computations were done using base R v3.1.3, supplemented by caret v6.0-41, ggplot2 v1.0.0, and dplyr v0.4.1.9000. The computations were speeded considerably by using the doParallel package. The machine used was a MacBook Pro with Intel Core i7, 4 cores, 2.3 GHz, 8GB RAM, and SSD storage.
+
+The experiment used groups of gyro, accelerometer, and magnetometer sensors.
+
+There were a large number of NAs in certain variables.  Other variables had values coded with text indicating that a division-by-zero event had occurred. These covered over half the cases, so I decided to remove the variables completely. It turns out that most of these are types of variables where division by zero might occur: variances, standard deviations, kurtosis, skewness, and amplitudes.  There are also NA/div0 problems with some averages, and they were removed also.
+
+After deletion of those variables, there are 13 variables for each of the sensor group locations: belt, arm, forearm, and dumbbell, plus one response variable 'classe'.   The variable names for the belt sensor are as follows:
+
+1. gyros_belt_x
+2. gyros_belt_y
+3. gyros_belt_z
+4. accel_belt_x
+5. accel_belt_y
+6. accel_belt_z
+7. magnet_belt_x
+8. magnet_belt_y
+9. magnet_belt_z
+10. roll_belt
+11. pitch_belt
+12. yaw_belt
+13. total_accel_belt
+
+The variable names for arm, forearm, and dumbbell are similar, substituting for "belt" above.
+
+The time and window related fields were aLL removed.  We were instructed to treat the observations as individual measurements rather than as time series.  A more extensive study might attempt to build aggregate measures of each time series, but that is beyond the scope of this project.
+
+A series of scatter plots, boxplots, and other summaries were produced to examine the data further.  It is apparent that there is a lot of variation among 'classe' values (see Figure 1 below), in patterns that are not readily obvious.  It is also clear that the six subjects differed widely in their sensor measurement data (see Figure 2 below).
+
+### Model Selection and Training
+
+The user_name variables were removed at this time before splitting the data into training and validation sets. 
+
+The "training" data set was split into a 40% partition to be used for training with the remaining set aside to be used for validation.  The "testing" data set was set aside for a final prediction test.  I also experimented with partitions of 10% (for script development and debugging), 20%, and 60%.  The 40% level produced high within-sample accuracies while leaving a large number of samples for validation.
+
+I focused on use of a random forest model, because of its generality and effectiveness with a moderately large number of predictor variables.  I felt that a gradient boosting approach would not be as effective because it would apply weighting against large residual variations for some data points, "chasing the errors" that are likely more noise than signal.
+
+#### Training Control and Execution
+
+I used an out-of-bag training control for use in the training process, with 5 repetitions.  I tried both with and without class probabilites and decided to not use them because of slightly better predictions within the training set.
+
+The resulting Kappa statistic for within-sample is 0.9849, with classification accuracy of 0.9880.
+
+#### Feature Selection
+
+A variable importance plot is shown in Figure 3 for the top 30 variables in importance.
+
+I tried using the Recursive Feature Elimination capability within the caret package, investigating a subset range of 20 to 40 predictors.  It did in some instances produce nearly as high within-sample classification accuracies as the full set of 52 predictors.  However, it appeared to be quite sensitive to random number seeds and some variations in the script sequence.  See Figure 3 for a cross-validation estimation plot, where a smaller amount of variables are retained.  In some cases, 27, or 30, or 34, or 37 variables are retained.  Because of this unpredictability, I decided to use the full set of 52 predictors.
+
+### Model Validation
+
+After deciding to use the set of 52 predictors in the random forest model, the model was applied to the 60% validation set.  The results show a Kappa value of 0.979 and a classification accuracy of 0.983.  These are only slightly smaller than the within sample numbers.  This indicates that the model is internally stable for predicting within this measurement set.
+
+### Model Testing  
+
+A set of 20 measurements were available for test predictions of this model.  These were apparently taken from the same set of six subjects who did the exercises for training and validation sets.  Predicted exercises were made at the end of the script (predicting 'classe'), based on the set of 52 predictors.  These were submitted separately and all were found to be correct.  These predictions can be seen at the end of this html output.
+
+### Conclusions  
+
+This sensor measurement set can be used for accurate predictions within the same set of subjects used in the training set, on the order of 98% or perhaps somewhat higher.  For instance, in a health club it could indicate if these subjects are performing the exercise correctly (classe = A), or else they are performing similar to one of the four incorrect techniques.  An attempt could be made to apply this random forest model to other subjects who are given the same instructions for correct execution of a dumbbell curl, with sensor data collection in the same manner.  However, I think it is questionable that results for other subjects will approach these high accuracies.
+
+The reasons have to do with the large variation between subjects, and also the varied patterns within the five classes of exercise techniques.  There does not appear to be a regularity that is being captured that would allow these results to be extended to other subjects.  Intuitively, it is doubtful that use of other predictive model types would improve on this: gradient boosting, support vectors, quadratic discriminant functions, etc.  It is also felt that principal component methods for pre-processing would be unlikely to help much: it would compress the variation into fewer features, but not change the variation patterns.
+
+What might help is a much larger number of subjects.  After all the feature selection, model tuning and fitting and prediction was performed, I went back in to do a quick experiment with use of the different users.  I built a model based on subjects 2 through 6, and predicted with Adelmo's measurements. The results were poor: only about 20%, or what one might expect through chance variation.  If this is true for extrapolating from 5 to 6 subjects, it would seem likely to also be true for extending to a 7th subject based on the 6.
+
+I also attempted to do normalization by user identity, using (value - mean)/ stdev.  The data were generally pulled toward each other some, but the random forest model results were somewhat worse: on the order of 90% rather than 98%.
+
+The random forest model is, in a sense, fitting tightly to the set of subjects.  There did not seem to be a clear regularization approach to change the bias/variance trade-off to a more advantageous balance.
+
+What might help more is to dig deeper into the physics of the motions of the subjects, and to produce aggregate measures for each of the repetitions that the subjects performed.
+ 
+## R Processing Script Commands
+
+```{r READ-DATA, echo=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(dplyr)
+setwd("~/Documents/R/pml")
+if (!file.exists("pml-training.csv"))    {
+  fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  download.file(fileURL, destfile= "pml-training.csv", method="curl")
+}
+if (!file.exists("pml-testing.csv"))    {
+fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileURL, destfile= "pml-testing.csv", method="curl")
+}
+pml.trn <- read.csv(file="pml-training.csv", stringsAsFactors = FALSE)
+pml.tst <- read.csv(file="pml-testing.csv", stringsAsFactors = FALSE)
+trVars <- dim(pml.trn)[2]
+trCases <- dim(pml.trn)[1]
+```
+
+There are `r trCases` total cases in the dataset.  These are distributed as follows among the six subjects listed in columns, and the 5 classes listed in rows:
+
+```{r TABLE, echo=FALSE}
+table(pml.trn$classe, pml.trn$user_name)
+```
+
+There are `r trVars` variables before removing ones that should not go into a model.
+
+```{r REMOVE-VARIABLES, echo=FALSE}
+nas <- apply(pml.trn, 2, function(x) sum(is.na(x)))
+pml.tr <- pml.trn[, which(nas == 0)]
+trVars1 <- dim(pml.tr)[2]
+divby0 <- apply(pml.tr, 2, function(x) !any(x == "#DIV/0!"))
+pml.tr <- pml.tr[, divby0]
+trVars2 <- dim(pml.tr)[2]
+```
+
+After deleting variables with a large number of NAs, there are `r trVars1` remaining.  
+After deleting variables with division-by-zero indicators as produced by the sensor processors, there remain `r trVars2` variables.  
+
+Note that this data reduction was done before splitting into training and validation sets.  This is defensible because the criteria were based on factors not related to model suitability, but only a very large number of NA and divide-by-zero codes.
+
+The following plots show a comparison of the different users for an example of two sensor measurements, and a comparison the different class types:
+
+``` {r SCATTER-PLOTS, echo=FALSE, fig.height= 4}
+qplot(data=pml.tr, x=roll_arm, y=yaw_arm, col=classe, alpha=0.1,
+      main="Figure 1. Example Scatter Plot by classe")
+qplot(data=pml.tr, x=roll_arm, y=yaw_arm, col=user_name, alpha=0.1,
+      main="Figure 2. Example Scatter Plot by user_name")
+```
+
+``` {r FINAL-DF, echo=FALSE}
+pml.trn.user <- pml.tr$user_name
+pml.t <- pml.tr[, 8:60]
+# pml.tr$classe <- as.factor(pml.tr$classe)
+trVars3 <- dim(pml.t)[2]
+```
+
+After deleting variables denoting time and sequencing (not needed in a model), there remain `r trVars3` variables.  
+
+```{r SET-UP-PARALLEL,echo=FALSE, message=FALSE}
+# enable multi-core processing
+library(doParallel)
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+```
+
+```{r BUILD-MODEL, echo=FALSE}
+pml.t$classe <- as.factor(pml.t$classe)
+set.seed(18743)
+inTrain <- createDataPartition(y = pml.t$classe, p=0.4, list=FALSE)
+pml.ftrain <- pml.t[inTrain, ]
+pml.ftest <- pml.t[-inTrain, ]
+pml.ftrain.classe <- pml.ftrain$classe
+pml.ftest.classe <- pml.ftest$classe
+tc <- trainControl(method = "oob",
+                   repeats = 5,
+                   classProbs = FALSE)
+modFit <- train(classe~ ., 
+                data=pml.ftrain, 
+                method="rf", 
+                tune.grid = data.frame(mtry = 5),
+                trControl = tc,
+                prox=TRUE)
+```
+
+```{r VAR-IMPORTANCE, echo=FALSE}
+modFit$finalModel
+rfImp <- varImp(modFit, useModel = TRUE, scale = TRUE)
+plot(rfImp, top=30, main = "Figure 3. Variable Importance, Top 30")
+```
+
+#### Predict full model against validation set for out-of-sample error estimate:
+
+```{r PREDICT-FULL, echo=FALSE}
+predtest <- predict(modFit, pml.ftest)
+confusionMatrix(predtest, pml.ftest.classe)
+```
+
+#### Determine if reduced feature set can be used and maintain good accuracy
+
+```{r FIND-REDUCED, echo=FALSE}
+ctrl <- rfeControl(functions=rfFuncs, method="cv", number=10)
+set.seed(12783)
+rfelist <- rfe(pml.ftrain[,1:52], pml.ftrain[,53], sizes = c(20:40),
+               rfeControl = ctrl)
+print(rfelist)
+plot(rfelist, type= c("g", "o"), main = "Figure 4. Recursive Feature Elimination, 20 to 40 Features")
+reduced <- predictors(rfelist) # character vector of reduced predictor names
+reduced
+reducedNum <- length(reduced)
+```
+
+#### Fit model with reduced set of `r reducedNum` predictors.
+
+```{r FIT-REDUCED, echo=FALSE}
+pml.ftrain.red <- cbind(pml.ftrain[, reduced], pml.ftrain.classe)
+names(pml.ftrain.red)[ncol(pml.ftrain.red)] = "classe"
+modFit.red <- train(classe~ ., 
+                data=pml.ftrain.red, 
+                method="rf", 
+                tune.grid = data.frame(mtry = 5),
+                trControl = tc,
+                prox=TRUE)
+modFit.red$finalModel
+stopCluster(cl)
+```
+
+#### Predict reduced model against validation set for out-of-sample error estimate:
+
+```{r PREDICT-REDUCED, echo=FALSE}
+pml.ftest.red <- pml.ftest[, reduced]
+predtest.red <- predict(modFit.red, pml.ftest.red)
+confusionMatrix(predtest.red, pml.ftest.classe)
+```
+
+#### Now predict the provided test set using the selected model.
+
+```{r TEST, echo=FALSE}
+predictors <- names(pml.t)[1:(dim(pml.t)[2]-1)]
+pml.tst.p <- pml.tst[, predictors]
+predtestset <- predict(modFit, pml.tst.p)
+predtestset
+```
